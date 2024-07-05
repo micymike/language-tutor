@@ -6,7 +6,7 @@ import os
 import pandas as pd
 from collections import defaultdict
 
-
+# Vocabulary dictionary
 vocabulary = {
     'apple': 'manzana', 'book': 'libro', 'cat': 'gato', 'dog': 'perro',
     'house': 'casa', 'tree': 'árbol', 'water': 'agua', 'sun': 'sol',
@@ -15,6 +15,7 @@ vocabulary = {
     'city': 'ciudad', 'music': 'música', 'time': 'tiempo', 'family': 'familia'
 }
 
+# Quiz questions
 quiz_questions = [
     {'question': 'What is the Spanish word for apple?', 'answer': 'manzana', 'difficulty': 'easy', 'category': 'Food'},
     {'question': 'What is the Spanish word for book?', 'answer': 'libro', 'difficulty': 'easy', 'category': 'Objects'},
@@ -38,7 +39,7 @@ quiz_questions = [
     {'question': 'What is the Spanish word for family?', 'answer': 'familia', 'difficulty': 'easy', 'category': 'People'}
 ]
 
-
+# Lazy loading for models
 @st.cache_resource
 def load_dialogue_model():
     model_name = "microsoft/DialoGPT-medium"
@@ -53,7 +54,7 @@ def load_translation_model():
     translation_model = MarianMTModel.from_pretrained(translation_model_name)
     return translation_tokenizer, translation_model
 
-
+# Helper functions
 def generate_response(message):
     message = message.lower().strip()
     
@@ -105,7 +106,7 @@ def play_translation(translation):
     audio_file = open("translation.mp3", "rb")
     audio_bytes = audio_file.read()
     st.audio(audio_bytes, format="audio/mp3")
-    os.remove("translation.mp3")  
+    os.remove("translation.mp3")  # Clean up the file after playing
 
 def spaced_repetition_quiz():
     if 'sr_questions' not in st.session_state:
@@ -129,7 +130,7 @@ def update_progress(correct):
         st.session_state.progress[category]['correct'] += 1
 
 # Streamlit app layout
-st.title("MiKe's Language Learning Assistant")
+st.title("Optimized Language Learning Assistant")
 
 st.sidebar.title("Menu")
 options = ["Chat", "Translate", "Quiz", "Vocabulary", "Progress"]
@@ -160,19 +161,32 @@ elif choice == "Quiz":
         difficulty = st.selectbox("Select difficulty level:", ["easy", "medium", "hard", "all"], key="quiz_difficulty")
         category = st.selectbox("Select category:", ["All"] + list(set(q['category'] for q in quiz_questions)), key="quiz_category")
         
-        if st.button("Start Quiz"):
+        if 'current_question' not in st.session_state:
+            st.session_state.current_question = None
+
+        if st.button("Start Quiz") or st.session_state.current_question:
             difficulty = None if difficulty == "all" else difficulty
             category = None if category == "All" else category
-            question, quiz_message = start_quiz(difficulty, category)
-            if question:
-                st.session_state.current_question = question
-                st.text(quiz_message)
+            
+            if not st.session_state.current_question:
+                question, quiz_message = start_quiz(difficulty, category)
+                if question:
+                    st.session_state.current_question = question
+                    st.session_state.quiz_message = quiz_message
+                    st.session_state.user_answer = None
+                else:
+                    st.error(quiz_message)
+                    st.session_state.current_question = None
+            
+            if st.session_state.current_question:
+                st.text(st.session_state.quiz_message)
                 choices = list(vocabulary.values())
                 random.shuffle(choices)
-                correct_choice = question['answer']
+                correct_choice = st.session_state.current_question['answer']
                 if correct_choice not in choices:
                     choices[random.randint(0, len(choices) - 1)] = correct_choice
                 selected_choice = st.radio("Choose the correct answer:", choices, key="quiz_choices")
+                
                 if st.button("Submit Answer"):
                     if selected_choice == correct_choice:
                         st.success("Correct!")
@@ -180,22 +194,34 @@ elif choice == "Quiz":
                     else:
                         st.error(f"Incorrect! The correct answer was '{correct_choice}'.")
                         update_progress(False)
-            else:
-                st.error(quiz_message)
-    
+                    
+                    st.session_state.current_question = None  # Reset for next question
+                    st.button("Next Question")
+
     elif quiz_type == "Spaced Repetition":
-        if st.button("Start Spaced Repetition Quiz"):
-            question, quiz_message = spaced_repetition_quiz()
-            st.session_state.current_question = question
-            st.text(quiz_message)
+        if 'sr_current_question' not in st.session_state:
+            st.session_state.sr_current_question = None
+
+        if st.button("Start Spaced Repetition Quiz") or st.session_state.sr_current_question:
+            if not st.session_state.sr_current_question:
+                question, quiz_message = spaced_repetition_quiz()
+                st.session_state.sr_current_question = question
+                st.session_state.sr_quiz_message = quiz_message
+                st.session_state.sr_user_answer = None
+
+            st.text(st.session_state.sr_quiz_message)
             user_answer = st.text_input("Your answer:")
+            
             if st.button("Submit Answer"):
-                if user_answer.lower() == question['answer'].lower():
+                if user_answer.lower() == st.session_state.sr_current_question['answer'].lower():
                     st.success("Correct!")
                     update_progress(True)
                 else:
-                    st.error(f"Incorrect! The correct answer was '{question['answer']}'.")
+                    st.error(f"Incorrect! The correct answer was '{st.session_state.sr_current_question['answer']}'.")
                     update_progress(False)
+                
+                st.session_state.sr_current_question = None  # Reset for next question
+                st.button("Next Question")
 
 elif choice == "Vocabulary":
     st.header("Vocabulary List")
