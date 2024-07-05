@@ -3,44 +3,19 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, MarianMTModel, Mar
 import random
 from gtts import gTTS
 import os
-import streamlit.components.v1 as components
 import pandas as pd
 from collections import defaultdict
 
-# Load models and tokenizers (same as before)
-model_name = "microsoft/DialoGPT-medium"
-tokenizer = AutoTokenizer.from_pretrained(model_name)
-model = AutoModelForCausalLM.from_pretrained(model_name)
-
-translation_model_name = "Helsinki-NLP/opus-mt-en-es"
-translation_tokenizer = MarianTokenizer.from_pretrained(translation_model_name)
-translation_model = MarianMTModel.from_pretrained(translation_model_name)
-
-# Expanded vocabulary dictionary
+# Vocabulary dictionary
 vocabulary = {
-    'apple': 'manzana',
-    'book': 'libro',
-    'cat': 'gato',
-    'dog': 'perro',
-    'house': 'casa',
-    'tree': 'árbol',
-    'water': 'agua',
-    'sun': 'sol',
-    'moon': 'luna',
-    'star': 'estrella',
-    'car': 'coche',
-    'computer': 'ordenador',
-    'phone': 'teléfono',
-    'food': 'comida',
-    'friend': 'amigo',
-    'school': 'escuela',
-    'city': 'ciudad',
-    'music': 'música',
-    'time': 'tiempo',
-    'family': 'familia'
+    'apple': 'manzana', 'book': 'libro', 'cat': 'gato', 'dog': 'perro',
+    'house': 'casa', 'tree': 'árbol', 'water': 'agua', 'sun': 'sol',
+    'moon': 'luna', 'star': 'estrella', 'car': 'coche', 'computer': 'ordenador',
+    'phone': 'teléfono', 'food': 'comida', 'friend': 'amigo', 'school': 'escuela',
+    'city': 'ciudad', 'music': 'música', 'time': 'tiempo', 'family': 'familia'
 }
 
-# Expanded quiz questions with categories
+# Quiz questions
 quiz_questions = [
     {'question': 'What is the Spanish word for apple?', 'answer': 'manzana', 'difficulty': 'easy', 'category': 'Food'},
     {'question': 'What is the Spanish word for book?', 'answer': 'libro', 'difficulty': 'easy', 'category': 'Objects'},
@@ -64,7 +39,22 @@ quiz_questions = [
     {'question': 'What is the Spanish word for family?', 'answer': 'familia', 'difficulty': 'easy', 'category': 'People'}
 ]
 
-# Helper functions (modified and new)
+# Lazy loading for models
+@st.cache_resource
+def load_dialogue_model():
+    model_name = "microsoft/DialoGPT-medium"
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    model = AutoModelForCausalLM.from_pretrained(model_name)
+    return tokenizer, model
+
+@st.cache_resource
+def load_translation_model():
+    translation_model_name = "Helsinki-NLP/opus-mt-en-es"
+    translation_tokenizer = MarianTokenizer.from_pretrained(translation_model_name)
+    translation_model = MarianMTModel.from_pretrained(translation_model_name)
+    return translation_tokenizer, translation_model
+
+# Helper functions
 def generate_response(message):
     message = message.lower().strip()
     
@@ -79,10 +69,9 @@ def generate_response(message):
 
 def handle_translation(text):
     if text in vocabulary:
-        translation = vocabulary[text]
+        return vocabulary[text]
     else:
-        translation = translate_text(text)
-    return translation
+        return translate_text(text)
 
 def start_quiz(difficulty=None, category=None):
     filtered_questions = quiz_questions
@@ -98,12 +87,14 @@ def start_quiz(difficulty=None, category=None):
     return question, f"Here's your question: {question['question']}"
 
 def translate_text(text):
+    translation_tokenizer, translation_model = load_translation_model()
     inputs = translation_tokenizer.encode(text, return_tensors='pt', max_length=512, truncation=True)
     translated_ids = translation_model.generate(inputs, max_length=512, num_beams=4, early_stopping=True)
     translated_text = translation_tokenizer.decode(translated_ids[0], skip_special_tokens=True)
     return translated_text
 
 def generate_conversational_response(message):
+    tokenizer, model = load_dialogue_model()
     inputs = tokenizer.encode(message + tokenizer.eos_token, return_tensors='pt', max_length=512, truncation=True)
     response_ids = model.generate(inputs, max_length=1000, pad_token_id=tokenizer.eos_token_id)
     response = tokenizer.decode(response_ids[:, inputs.shape[-1]:][0], skip_special_tokens=True)
@@ -115,8 +106,8 @@ def play_translation(translation):
     audio_file = open("translation.mp3", "rb")
     audio_bytes = audio_file.read()
     st.audio(audio_bytes, format="audio/mp3")
+    os.remove("translation.mp3")  # Clean up the file after playing
 
-# New function for spaced repetition
 def spaced_repetition_quiz():
     if 'sr_questions' not in st.session_state:
         st.session_state.sr_questions = quiz_questions.copy()
@@ -129,7 +120,6 @@ def spaced_repetition_quiz():
     question = st.session_state.sr_questions.pop(0)
     return question, f"Here's your spaced repetition question: {question['question']}"
 
-# New function for progress tracking
 def update_progress(correct):
     if 'progress' not in st.session_state:
         st.session_state.progress = defaultdict(lambda: {'correct': 0, 'total': 0})
@@ -140,7 +130,7 @@ def update_progress(correct):
         st.session_state.progress[category]['correct'] += 1
 
 # Streamlit app layout
-st.title("Enhanced Language Learning Assistant")
+st.title("Optimized Language Learning Assistant")
 
 st.sidebar.title("Menu")
 options = ["Chat", "Translate", "Quiz", "Vocabulary", "Progress"]
