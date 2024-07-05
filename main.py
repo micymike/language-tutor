@@ -4,18 +4,19 @@ import random
 from gtts import gTTS
 import os
 import streamlit.components.v1 as components
+import pandas as pd
+from collections import defaultdict
 
-# Load the DialoGPT model and tokenizer for conversational responses
+# Load models and tokenizers (same as before)
 model_name = "microsoft/DialoGPT-medium"
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 model = AutoModelForCausalLM.from_pretrained(model_name)
 
-# Load the translation model and tokenizer for English to Spanish translation
 translation_model_name = "Helsinki-NLP/opus-mt-en-es"
 translation_tokenizer = MarianTokenizer.from_pretrained(translation_model_name)
 translation_model = MarianMTModel.from_pretrained(translation_model_name)
 
-# Define an expanded vocabulary dictionary for simple translation exercises
+# Expanded vocabulary dictionary
 vocabulary = {
     'apple': 'manzana',
     'book': 'libro',
@@ -26,30 +27,44 @@ vocabulary = {
     'water': 'agua',
     'sun': 'sol',
     'moon': 'luna',
-    'star': 'estrella'
+    'star': 'estrella',
+    'car': 'coche',
+    'computer': 'ordenador',
+    'phone': 'teléfono',
+    'food': 'comida',
+    'friend': 'amigo',
+    'school': 'escuela',
+    'city': 'ciudad',
+    'music': 'música',
+    'time': 'tiempo',
+    'family': 'familia'
 }
 
-# Define expanded quiz questions and answers with difficulty levels
+# Expanded quiz questions with categories
 quiz_questions = [
-    {'question': 'What is the Spanish word for apple?', 'answer': 'manzana', 'difficulty': 'easy'},
-    {'question': 'What is the Spanish word for book?', 'answer': 'libro', 'difficulty': 'easy'},
-    {'question': 'What is the Spanish word for cat?', 'answer': 'gato', 'difficulty': 'easy'},
-    {'question': 'What is the Spanish word for dog?', 'answer': 'perro', 'difficulty': 'easy'},
-    {'question': 'What is the Spanish word for house?', 'answer': 'casa', 'difficulty': 'medium'},
-    {'question': 'What is the Spanish word for tree?', 'answer': 'árbol', 'difficulty': 'medium'},
-    {'question': 'What is the Spanish word for water?', 'answer': 'agua', 'difficulty': 'medium'},
-    {'question': 'What is the Spanish word for sun?', 'answer': 'sol', 'difficulty': 'hard'},
-    {'question': 'What is the Spanish word for moon?', 'answer': 'luna', 'difficulty': 'hard'},
-    {'question': 'What is the Spanish word for star?', 'answer': 'estrella', 'difficulty': 'hard'}
+    {'question': 'What is the Spanish word for apple?', 'answer': 'manzana', 'difficulty': 'easy', 'category': 'Food'},
+    {'question': 'What is the Spanish word for book?', 'answer': 'libro', 'difficulty': 'easy', 'category': 'Objects'},
+    {'question': 'What is the Spanish word for cat?', 'answer': 'gato', 'difficulty': 'easy', 'category': 'Animals'},
+    {'question': 'What is the Spanish word for dog?', 'answer': 'perro', 'difficulty': 'easy', 'category': 'Animals'},
+    {'question': 'What is the Spanish word for house?', 'answer': 'casa', 'difficulty': 'medium', 'category': 'Places'},
+    {'question': 'What is the Spanish word for tree?', 'answer': 'árbol', 'difficulty': 'medium', 'category': 'Nature'},
+    {'question': 'What is the Spanish word for water?', 'answer': 'agua', 'difficulty': 'medium', 'category': 'Nature'},
+    {'question': 'What is the Spanish word for sun?', 'answer': 'sol', 'difficulty': 'hard', 'category': 'Nature'},
+    {'question': 'What is the Spanish word for moon?', 'answer': 'luna', 'difficulty': 'hard', 'category': 'Nature'},
+    {'question': 'What is the Spanish word for star?', 'answer': 'estrella', 'difficulty': 'hard', 'category': 'Nature'},
+    {'question': 'What is the Spanish word for car?', 'answer': 'coche', 'difficulty': 'medium', 'category': 'Transportation'},
+    {'question': 'What is the Spanish word for computer?', 'answer': 'ordenador', 'difficulty': 'hard', 'category': 'Technology'},
+    {'question': 'What is the Spanish word for phone?', 'answer': 'teléfono', 'difficulty': 'medium', 'category': 'Technology'},
+    {'question': 'What is the Spanish word for food?', 'answer': 'comida', 'difficulty': 'easy', 'category': 'Food'},
+    {'question': 'What is the Spanish word for friend?', 'answer': 'amigo', 'difficulty': 'easy', 'category': 'People'},
+    {'question': 'What is the Spanish word for school?', 'answer': 'escuela', 'difficulty': 'medium', 'category': 'Places'},
+    {'question': 'What is the Spanish word for city?', 'answer': 'ciudad', 'difficulty': 'medium', 'category': 'Places'},
+    {'question': 'What is the Spanish word for music?', 'answer': 'música', 'difficulty': 'easy', 'category': 'Arts'},
+    {'question': 'What is the Spanish word for time?', 'answer': 'tiempo', 'difficulty': 'hard', 'category': 'Abstract'},
+    {'question': 'What is the Spanish word for family?', 'answer': 'familia', 'difficulty': 'easy', 'category': 'People'}
 ]
 
-# Streamlit app layout
-st.title("Language Learning Assistant")
-
-st.sidebar.title("Menu")
-options = ["Chat", "Translate", "Quiz"]
-choice = st.sidebar.selectbox("Select an option", options)
-
+# Helper functions (modified and new)
 def generate_response(message):
     message = message.lower().strip()
     
@@ -69,15 +84,17 @@ def handle_translation(text):
         translation = translate_text(text)
     return translation
 
-def start_quiz(difficulty=None):
+def start_quiz(difficulty=None, category=None):
+    filtered_questions = quiz_questions
     if difficulty:
-        filtered_questions = [q for q in quiz_questions if q['difficulty'] == difficulty]
-        if not filtered_questions:
-            return None, f"No questions available for difficulty '{difficulty}'. Try 'easy', 'medium', or 'hard'."
-        question = random.choice(filtered_questions)
-    else:
-        question = random.choice(quiz_questions)
+        filtered_questions = [q for q in filtered_questions if q['difficulty'] == difficulty]
+    if category:
+        filtered_questions = [q for q in filtered_questions if q['category'] == category]
     
+    if not filtered_questions:
+        return None, f"No questions available for the selected criteria. Please try different options."
+    
+    question = random.choice(filtered_questions)
     return question, f"Here's your question: {question['question']}"
 
 def translate_text(text):
@@ -99,6 +116,36 @@ def play_translation(translation):
     audio_bytes = audio_file.read()
     st.audio(audio_bytes, format="audio/mp3")
 
+# New function for spaced repetition
+def spaced_repetition_quiz():
+    if 'sr_questions' not in st.session_state:
+        st.session_state.sr_questions = quiz_questions.copy()
+        random.shuffle(st.session_state.sr_questions)
+    
+    if not st.session_state.sr_questions:
+        st.session_state.sr_questions = quiz_questions.copy()
+        random.shuffle(st.session_state.sr_questions)
+    
+    question = st.session_state.sr_questions.pop(0)
+    return question, f"Here's your spaced repetition question: {question['question']}"
+
+# New function for progress tracking
+def update_progress(correct):
+    if 'progress' not in st.session_state:
+        st.session_state.progress = defaultdict(lambda: {'correct': 0, 'total': 0})
+    
+    category = st.session_state.current_question['category']
+    st.session_state.progress[category]['total'] += 1
+    if correct:
+        st.session_state.progress[category]['correct'] += 1
+
+# Streamlit app layout
+st.title("Enhanced Language Learning Assistant")
+
+st.sidebar.title("Menu")
+options = ["Chat", "Translate", "Quiz", "Vocabulary", "Progress"]
+choice = st.sidebar.selectbox("Select an option", options)
+
 if choice == "Chat":
     st.header("Chat with the Bot")
     user_message = st.text_input("You:", key="chat_input")
@@ -118,21 +165,65 @@ elif choice == "Translate":
 
 elif choice == "Quiz":
     st.header("Quiz")
-    difficulty = st.selectbox("Select difficulty level:", ["easy", "medium", "hard"], key="quiz_difficulty")
-    if st.button("Start Quiz"):
-        question, quiz_message = start_quiz(difficulty)
-        if question:
+    quiz_type = st.radio("Select quiz type:", ["Regular", "Spaced Repetition"])
+    
+    if quiz_type == "Regular":
+        difficulty = st.selectbox("Select difficulty level:", ["easy", "medium", "hard", "all"], key="quiz_difficulty")
+        category = st.selectbox("Select category:", ["All"] + list(set(q['category'] for q in quiz_questions)), key="quiz_category")
+        
+        if st.button("Start Quiz"):
+            difficulty = None if difficulty == "all" else difficulty
+            category = None if category == "All" else category
+            question, quiz_message = start_quiz(difficulty, category)
+            if question:
+                st.session_state.current_question = question
+                st.text(quiz_message)
+                choices = list(vocabulary.values())
+                random.shuffle(choices)
+                correct_choice = question['answer']
+                if correct_choice not in choices:
+                    choices[random.randint(0, len(choices) - 1)] = correct_choice
+                selected_choice = st.radio("Choose the correct answer:", choices, key="quiz_choices")
+                if st.button("Submit Answer"):
+                    if selected_choice == correct_choice:
+                        st.success("Correct!")
+                        update_progress(True)
+                    else:
+                        st.error(f"Incorrect! The correct answer was '{correct_choice}'.")
+                        update_progress(False)
+            else:
+                st.error(quiz_message)
+    
+    elif quiz_type == "Spaced Repetition":
+        if st.button("Start Spaced Repetition Quiz"):
+            question, quiz_message = spaced_repetition_quiz()
+            st.session_state.current_question = question
             st.text(quiz_message)
-            choices = list(vocabulary.values())
-            random.shuffle(choices)
-            correct_choice = question['answer']
-            if correct_choice not in choices:
-                choices[random.randint(0, len(choices) - 1)] = correct_choice
-            selected_choice = st.radio("Choose the correct answer:", choices, key="quiz_choices")
+            user_answer = st.text_input("Your answer:")
             if st.button("Submit Answer"):
-                if selected_choice == correct_choice:
+                if user_answer.lower() == question['answer'].lower():
                     st.success("Correct!")
+                    update_progress(True)
                 else:
-                    st.error(f"Incorrect! The correct answer was '{correct_choice}'.")
-        else:
-            st.error(quiz_message)
+                    st.error(f"Incorrect! The correct answer was '{question['answer']}'.")
+                    update_progress(False)
+
+elif choice == "Vocabulary":
+    st.header("Vocabulary List")
+    df = pd.DataFrame(list(vocabulary.items()), columns=['English', 'Spanish'])
+    st.dataframe(df)
+
+elif choice == "Progress":
+    st.header("Your Progress")
+    if 'progress' in st.session_state:
+        progress_data = []
+        for category, data in st.session_state.progress.items():
+            correct = data['correct']
+            total = data['total']
+            percentage = (correct / total) * 100 if total > 0 else 0
+            progress_data.append({'Category': category, 'Correct': correct, 'Total': total, 'Percentage': f"{percentage:.2f}%"})
+        
+        progress_df = pd.DataFrame(progress_data)
+        st.dataframe(progress_df)
+    else:
+        st.info("No progress data available yet. Start taking quizzes to see your progress!")
