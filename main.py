@@ -130,7 +130,7 @@ def update_progress(correct):
         st.session_state.progress[category]['correct'] += 1
 
 # Streamlit app layout
-st.title("Optimized Language Learning Assistant")
+st.title("MiKe's Language Learning Assistant")
 
 st.sidebar.title("Menu")
 options = ["Chat", "Translate", "Quiz", "Vocabulary", "Progress"]
